@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 )
@@ -36,13 +37,24 @@ func (lt *LocalTransport) Connect(local Transport) error {
 }
 
 func (lt *LocalTransport) SendMessage(addr NetAdddr, payload []byte) error {
+	lt.lock.Lock()
+	defer lt.lock.Unlock()
 	peer, ok := lt.peers[addr]
 	if !ok {
 		return fmt.Errorf("unable to send from %s to %s", lt.addr, addr)
 	}
 	peer.consumeCh <- RPC{
 		From:    lt.Addr(),
-		Payload: payload,
+		Payload: bytes.NewReader(payload),
+	}
+	return nil
+}
+
+func (lt *LocalTransport) Broadcast(payload []byte) error {
+	for _, peer := range lt.peers {
+		if err := lt.SendMessage(peer.Addr(), payload); err != nil {
+			return err
+		}
 	}
 	return nil
 }

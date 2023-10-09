@@ -1,6 +1,10 @@
 package crypto
 
 import (
+	"bytes"
+	"crypto/elliptic"
+	"encoding/gob"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -52,4 +56,29 @@ func TestKeyPairSign_Verify(t *testing.T) {
 			assert.Equal(t, tc.expected, sig.Verify(tc.pubKey, tc.data))
 		})
 	}
+}
+
+type P256Curve struct{}
+
+func (P256Curve) GobEncode() ([]byte, error) {
+	return []byte("P-256"), nil
+}
+
+func (P256Curve) GobDecode(data []byte) error {
+	if string(data) != "P-256" {
+		return errors.New("invalid data for P256Curve")
+	}
+	return nil
+}
+
+func TestEncodingPublicKey(t *testing.T) {
+	privKey := GeneratePrivateKey()
+	pbKey := privKey.GeneratePublicKey()
+	buff := &bytes.Buffer{}
+
+	gob.Register(elliptic.P256())
+	err := gob.NewEncoder(buff).Encode(pbKey)
+	fmt.Println(err)
+	assert.Nil(t, err)
+	fmt.Println(buff)
 }
