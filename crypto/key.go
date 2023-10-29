@@ -10,6 +10,8 @@ import (
 	"github.com/raja-dettex/modular-blockchain/types"
 )
 
+type PublicKey []byte
+
 type PrivateKey struct {
 	Key *ecdsa.PrivateKey
 }
@@ -23,10 +25,9 @@ func GeneratePrivateKey() PrivateKey {
 		Key: key,
 	}
 }
+
 func (k PrivateKey) GeneratePublicKey() PublicKey {
-	return PublicKey{
-		Key: &k.Key.PublicKey,
-	}
+	return elliptic.MarshalCompressed(k.Key.PublicKey, k.Key.X, k.Key.Y)
 }
 
 func (k PrivateKey) Sign(data []byte) (*Signature, error) {
@@ -40,16 +41,8 @@ func (k PrivateKey) Sign(data []byte) (*Signature, error) {
 	}, nil
 }
 
-type PublicKey struct {
-	Key *ecdsa.PublicKey
-}
-
-func (k PublicKey) ToSlice() []byte {
-	return elliptic.MarshalCompressed(k.Key, k.Key.X, k.Key.Y)
-}
-
 func (k PublicKey) Address() types.Address {
-	h := sha256.Sum256(k.ToSlice())
+	h := sha256.Sum256(k)
 	return types.AddressFromByte(h[len(h)-20:])
 }
 
@@ -58,5 +51,11 @@ type Signature struct {
 }
 
 func (s *Signature) Verify(pubKey PublicKey, data []byte) bool {
-	return ecdsa.Verify(pubKey.Key, data, s.R, s.S)
+	x, y := elliptic.UnmarshalCompressed(elliptic.P256(), pubKey)
+	key := &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     x,
+		Y:     y,
+	}
+	return ecdsa.Verify(key, data, s.R, s.S)
 }

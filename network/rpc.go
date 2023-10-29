@@ -2,9 +2,11 @@ package network
 
 import (
 	"bytes"
+	"crypto/elliptic"
 	"encoding/gob"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/raja-dettex/modular-blockchain/core"
 )
@@ -12,12 +14,16 @@ import (
 type MessageType byte
 
 const (
-	MessageTypeTX    MessageType = 0x1
-	MessageTypeBlock MessageType = 0x2
+	MessageTypeTX               MessageType = 0x1
+	MessageTypeBlock            MessageType = 0x2
+	MessageTypeGetBlocks        MessageType = 0x3
+	MessageTypeStatusMessage    MessageType = 0x4
+	MessageTypeGetStatusMessage MessageType = 0x5
+	MessageTypeSyncBlocks       MessageType = 0x06
 )
 
 type RPC struct {
-	From    NetAdddr
+	From    net.Addr
 	Payload io.Reader
 }
 
@@ -42,7 +48,7 @@ func (m Message) Bytes() ([]byte, error) {
 }
 
 type DecodedMessage struct {
-	From NetAdddr
+	From net.Addr
 	Data any
 }
 
@@ -51,7 +57,7 @@ type RPCDecodeFunc func(RPC) (*DecodedMessage, error)
 func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 	msg := Message{}
 	if err := gob.NewDecoder(rpc.Payload).Decode(&msg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode message %v", err)
 	}
 	switch msg.Header {
 	case MessageTypeTX:
@@ -72,7 +78,38 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 			From: rpc.From,
 			Data: block,
 		}, nil
-
+	case MessageTypeStatusMessage:
+		statusMessage := new(StatusMessage)
+		if err := gob.NewDecoder(bytes.NewReader(msg.Data)).Decode(statusMessage); err != nil {
+			return nil, err
+		}
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: statusMessage,
+		}, nil
+	case MessageTypeGetStatusMessage:
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: &GetStatusMessage{},
+		}, nil
+	case MessageTypeGetBlocks:
+		getBlocksMessage := new(GetBlocksMessage)
+		if err := gob.NewDecoder(bytes.NewReader(msg.Data)).Decode(getBlocksMessage); err != nil {
+			return nil, err
+		}
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: getBlocksMessage,
+		}, nil
+	case MessageTypeSyncBlocks:
+		blocksMessge := new(BlocksMessage)
+		if err := gob.NewDecoder(bytes.NewReader(msg.Data)).Decode(blocksMessge); err != nil {
+			return nil, err
+		}
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: blocksMessge,
+		}, nil
 	default:
 		return nil, fmt.Errorf("handler other than transaction not registered")
 	}
@@ -80,4 +117,8 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 
 type RPCProcessor interface {
 	ProcessMessage(*DecodedMessage) error
+}
+
+func init() {
+	gob.Register(elliptic.P256())
 }

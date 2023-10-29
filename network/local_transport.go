@@ -3,25 +3,26 @@ package network
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"sync"
 )
 
 type LocalTransport struct {
-	addr      NetAdddr
+	addr      net.Addr
 	consumeCh chan RPC
-	peers     map[NetAdddr]*LocalTransport
+	peers     map[net.Addr]*LocalTransport
 	lock      sync.RWMutex
 }
 
-func NewLocalTransport(addr NetAdddr) *LocalTransport {
+func NewLocalTransport(addr net.Addr) *LocalTransport {
 	return &LocalTransport{
 		addr:      addr,
 		consumeCh: make(chan RPC, 1024),
-		peers:     make(map[NetAdddr]*LocalTransport),
+		peers:     make(map[net.Addr]*LocalTransport),
 	}
 }
 
-func (lt *LocalTransport) Addr() NetAdddr {
+func (lt *LocalTransport) Addr() net.Addr {
 	return lt.addr
 }
 
@@ -32,16 +33,19 @@ func (lt *LocalTransport) Consume() <-chan RPC {
 func (lt *LocalTransport) Connect(local Transport) error {
 	lt.lock.Lock()
 	defer lt.lock.Unlock()
+	if lt.Addr() == local.Addr() {
+		return fmt.Errorf("can not connect to its own, local peer %v, remote peer %v\n", lt.Addr(), local.Addr())
+	}
 	lt.peers[local.Addr()] = local.(*LocalTransport)
 	return nil
 }
 
-func (lt *LocalTransport) SendMessage(addr NetAdddr, payload []byte) error {
+func (lt *LocalTransport) SendMessage(addr net.Addr, payload []byte) error {
 	lt.lock.Lock()
 	defer lt.lock.Unlock()
 	peer, ok := lt.peers[addr]
 	if !ok {
-		return fmt.Errorf("unable to send from %s to %s", lt.addr, addr)
+		return fmt.Errorf("unable to send from %s to %s\n", lt.addr, addr)
 	}
 	peer.consumeCh <- RPC{
 		From:    lt.Addr(),

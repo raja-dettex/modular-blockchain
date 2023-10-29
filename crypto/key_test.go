@@ -18,6 +18,28 @@ func TestKeyPair(t *testing.T) {
 	fmt.Println(address)
 }
 
+// func TestKeyPairNew(t *testing.T) {
+// 	privateKey := GeneratePrivateKey()
+// 	publicKey := privateKey.PublicKey()
+// 	msg := []byte("hello")
+// 	sig, err := privateKey.Sign(msg)
+// 	assert.Nil(t, err)
+// 	result := sig.VerifyNew(publicKey, msg)
+// 	assert.True(t, result)
+// }
+
+// func TestKeyPairNewToBefalse(t *testing.T) {
+// 	privateKey := GeneratePrivateKey()
+// 	//publicKey := privateKey.PublicKey()
+// 	oPrivkey := GeneratePrivateKey()
+// 	oPubKey := oPrivkey.PublicKey()
+// 	msg := []byte("hello")
+// 	sig, err := privateKey.Sign(msg)
+// 	assert.Nil(t, err)
+// 	result := sig.VerifyNew(oPubKey, msg)
+// 	assert.False(t, result)
+// }
+
 func TestKeyPairSign_Verify(t *testing.T) {
 	type testCase struct {
 		name     string

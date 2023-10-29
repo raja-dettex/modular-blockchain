@@ -46,7 +46,7 @@ func generateRandomTransactionWithSignature(t *testing.T) *Transaction {
 }
 func generateRandomTransactionWithSignatureforVM(t *testing.T) *Transaction {
 	privKey := crypto.GeneratePrivateKey()
-	tx := NewTransaction([]byte{0x01, 0x0a, 0x02, 0x0a, 0x0b})
+	tx := NewTransaction(Contract())
 	tx.Sign(privKey)
 	return tx
 }

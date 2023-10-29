@@ -111,7 +111,7 @@ func CalculateDataHash(txx []*Transaction) (types.Hash, error) {
 	buff := &bytes.Buffer{}
 	for _, tx := range txx {
 		if err := tx.Encode(NewGobTxEncoder(buff)); err != nil {
-			return types.Hash{}, nil
+			return types.Hash{}, err
 		}
 	}
 	return sha256.Sum256(buff.Bytes()), nil
