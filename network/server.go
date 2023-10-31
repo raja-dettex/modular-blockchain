@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/raja-dettex/modular-blockchain/api"
 	"github.com/raja-dettex/modular-blockchain/core"
 	"github.com/raja-dettex/modular-blockchain/crypto"
 	"github.com/raja-dettex/modular-blockchain/types"
@@ -20,6 +21,7 @@ var (
 )
 
 type ServerOpts struct {
+	ApiListenAddr string
 	SeedNodes     []string
 	ListenAddr    string
 	TcpTransport  *TCPTransport
@@ -42,6 +44,7 @@ type Server struct {
 	memPool     *TxPool
 	rpcCh       chan RPC
 	quitCh      chan struct{}
+	txChan      chan *core.Transaction
 }
 
 func (s *Server) bootstrapNetwork() {
@@ -109,6 +112,18 @@ func NewServer(opts ServerOpts) (*Server, error) {
 
 	// send a get status message to its neighbour
 	// s.sendStatusMessage()
+
+	// start the api server if the config has a valid port
+
+	// this channel is used to get the transactions from rpc to network and propagate it among nodes
+	txChan := make(chan *core.Transaction)
+	s.txChan = txChan
+	if opts.ApiListenAddr != "" {
+		apiServerConfig := api.ServerConfig{ListenAddr: opts.ApiListenAddr}
+		apiServer := api.NewServer(apiServerConfig, s.chain, txChan)
+		go apiServer.Start()
+	}
+
 	return s, nil
 }
 
@@ -127,6 +142,10 @@ free:
 			}
 
 			go peer.HandleConn(s.rpcCh)
+		case tx := <-s.txChan:
+			if err := s.processTransaction(tx); err != nil {
+				panic(err)
+			}
 
 		case rpc := <-s.rpcCh:
 			msg, err := s.Opts.RPCDecodeFunc(rpc)
@@ -189,13 +208,19 @@ func (s *Server) processGetBlocksMessage(addr net.Addr, data *GetBlocksMessage) 
 	blocks := []*core.Block{}
 	if data.From == 0 {
 		for i := uint32(1); i <= data.To; i++ {
-			b := s.chain.GetBlock(i)
+			b, err := s.chain.GetBlock(i)
+			if err != nil {
+				s.Opts.Logger.Log("msg", "can not get block", "error", err)
+			}
 			blocks = append(blocks, b)
 		}
 		return s.sendBlocksMessage(addr, blocks)
 	}
 	for i := data.From; i <= data.To; i++ {
-		b := s.chain.GetBlock(i)
+		b, err := s.chain.GetBlock(i)
+		if err != nil {
+			s.Opts.Logger.Log("msg", "can not get block", "error", err)
+		}
 		blocks = append(blocks, b)
 	}
 	return s.sendBlocksMessage(addr, blocks)

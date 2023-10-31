@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/raja-dettex/modular-blockchain/crypto"
 	"github.com/raja-dettex/modular-blockchain/types"
@@ -11,7 +12,7 @@ type Transaction struct {
 	Data     []byte
 	From     crypto.PublicKey
 	Signaure *crypto.Signature
-
+	Nonce    int64
 	// cache the hash of transaction
 	hash types.Hash
 
@@ -21,7 +22,8 @@ type Transaction struct {
 
 func NewTransaction(data []byte) *Transaction {
 	return &Transaction{
-		Data: data,
+		Data:  data,
+		Nonce: rand.Int63n(100000000000),
 	}
 }
 

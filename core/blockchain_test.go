@@ -41,7 +41,7 @@ func TestBlocksMessage(t *testing.T) {
 	// assert.Nil(t, err)
 
 	for i := 0; i < 2; i++ {
-		block := bc.GetBlock(uint32(i))
+		block, _ := bc.GetBlock(uint32(i))
 		blocks = append(blocks, block)
 	}
 	blocksMessage := &BlocksMessage{

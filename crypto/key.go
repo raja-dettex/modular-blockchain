@@ -1,10 +1,13 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/gob"
+	"encoding/hex"
 	"math/big"
 
 	"github.com/raja-dettex/modular-blockchain/types"
@@ -48,6 +51,14 @@ func (k PublicKey) Address() types.Address {
 
 type Signature struct {
 	R, S *big.Int
+}
+
+func (s *Signature) String() string {
+	buff := new(bytes.Buffer)
+	if err := gob.NewEncoder(buff).Encode(s); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(buff.Bytes())
 }
 
 func (s *Signature) Verify(pubKey PublicKey, data []byte) bool {

@@ -26,6 +26,9 @@ func (peer *TCPPeer) HandleConn(rpcCh chan RPC) {
 	buff := make([]byte, 2048)
 	for {
 		n, err := peer.conn.Read(buff)
+		if err == io.EOF {
+			continue
+		}
 		if err != nil {
 			fmt.Printf("read from byte stream error : %+v\n", err)
 		}

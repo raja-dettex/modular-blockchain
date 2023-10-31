@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"log"
-	"net"
+	"net/http"
 	"time"
 
 	"github.com/raja-dettex/modular-blockchain/core"
@@ -14,35 +14,45 @@ import (
 func main() {
 	peers := []string{":3000"}
 	pk := crypto.GeneratePrivateKey()
-	localNode := makeServer("LOCAL_NODE", &pk, ":3000", peers)
+	localNode := makeServer("LOCAL_NODE", &pk, ":3000", peers, ":9000")
 	go localNode.Start()
 	// remoteNode := makeServer("REMOTE_NODE", nil, ":4000", []string{":5000"})
 	// go remoteNode.Start()
 	// remoteNodeB := makeServer("REMOTE_NODE_B", nil, ":5000", []string{})
 	// go remoteNodeB.Start()
-	time.Sleep(time.Second * 13)
-	remoteNodeLate := makeServer("REMOTE_NODE_LATE", nil, ":6000", []string{":3000"})
-	go remoteNodeLate.Start()
+	go func() {
+		time.Sleep(time.Second * 13)
+		remoteNodeLate := makeServer("REMOTE_NODE_LATE", nil, ":6000", []string{":3000"}, "")
+		go remoteNodeLate.Start()
+	}()
+	// panic("here")
+
 	//var blockingCh chan interface{}
 	// tcpTransport := network.NewTCPTransport(":3000")
 	// if err := tcpTransport.Start(); err != nil {
 	// 	log.Fatal(err)
 	// }
-	time.Sleep(time.Second * 2)
-	for {
-		go testConn()
-		time.Sleep(time.Second * 2)
-	}
+	// time.Sleep(time.Second * 2)
+	// for {
+	// 	go testConn()
+	// 	time.Sleep(time.Second * 2)
+	// }
 
+	tickerInterval := time.NewTicker(time.Second * 1)
+
+	go func() {
+		for {
+			<-tickerInterval.C
+			go txSender()
+		}
+	}()
+
+	select {}
 	//<-blockingCh
 
 }
 
-func testConn() {
-	conn, err := net.Dial("tcp", ":3000")
-	if err != nil {
-		panic(err)
-	}
+func txSender() {
 	privKey := crypto.GeneratePrivateKey()
 	data := Contract()
 	tx := core.NewTransaction(data)
@@ -53,22 +63,23 @@ func testConn() {
 	if err := tx.Encode(core.NewGobTxEncoder(buff)); err != nil {
 		panic(err)
 	}
-	msg := network.NewMessage(network.MessageTypeTX, buff.Bytes())
-	msgByte, err := msg.Bytes()
+	req, err := http.NewRequest("POST", "http://localhost:9000/tx", buff)
 	if err != nil {
 		panic(err)
 	}
-	_, err = conn.Write(msgByte)
+	client := http.DefaultClient
+	_, err = client.Do(req)
 	if err != nil {
 		panic(err)
 	}
 }
-func makeServer(ID string, privKey *crypto.PrivateKey, addr string, peers []string) *network.Server {
+func makeServer(ID string, privKey *crypto.PrivateKey, addr string, peers []string, apiListenAddr string) *network.Server {
 	opts := network.ServerOpts{
-		ListenAddr: addr,
-		ID:         ID,
-		PrivateKey: privKey,
-		SeedNodes:  peers,
+		ApiListenAddr: apiListenAddr,
+		ListenAddr:    addr,
+		ID:            ID,
+		PrivateKey:    privKey,
+		SeedNodes:     peers,
 	}
 	server, err := network.NewServer(opts)
 	if err != nil {
