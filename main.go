@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/gob"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -9,6 +12,8 @@ import (
 	"github.com/raja-dettex/modular-blockchain/core"
 	"github.com/raja-dettex/modular-blockchain/crypto"
 	"github.com/raja-dettex/modular-blockchain/network"
+	"github.com/raja-dettex/modular-blockchain/types"
+	"github.com/raja-dettex/modular-blockchain/utils"
 )
 
 func main() {
@@ -25,6 +30,11 @@ func main() {
 		remoteNodeLate := makeServer("REMOTE_NODE_LATE", nil, ":6000", []string{":3000"}, "")
 		go remoteNodeLate.Start()
 	}()
+
+	time.Sleep(time.Second * 1)
+	if err := sendTransaction(pk); err != nil {
+		fmt.Println(err)
+	}
 	// panic("here")
 
 	//var blockingCh chan interface{}
@@ -38,24 +48,90 @@ func main() {
 	// 	time.Sleep(time.Second * 2)
 	// }
 
-	tickerInterval := time.NewTicker(time.Second * 1)
-
-	go func() {
-		for {
-			<-tickerInterval.C
-			go txSender()
-		}
-	}()
+	// tickerInterval := time.NewTicker(time.Second * 1)
+	// collectionOwnerPrivKey := crypto.GeneratePrivateKey()
+	// colletionHash := createCollectionTx(collectionOwnerPrivKey)
+	// go func() {
+	// 	for i := 0; i < 20; i++ {
+	// 		<-tickerInterval.C
+	// 		go nftMinter(collectionOwnerPrivKey, colletionHash)
+	// 	}
+	// }()
 
 	select {}
 	//<-blockingCh
 
 }
 
-func txSender() {
-	privKey := crypto.GeneratePrivateKey()
-	data := Contract()
-	tx := core.NewTransaction(data)
+func sendTransaction(privKey crypto.PrivateKey) error {
+	tx := core.NewTransaction(nil)
+	// privKey := crypto.GeneratePrivateKey()
+	toPrivKey := crypto.GeneratePrivateKey()
+	tx.To = toPrivKey.GeneratePublicKey()
+	tx.Value = 666
+	if err := tx.Sign(privKey); err != nil {
+		return err
+	}
+	buff := new(bytes.Buffer)
+	if err := gob.NewEncoder(buff).Encode(tx); err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", "http://localhost:9000/tx", buff)
+	if err != nil {
+		panic(err)
+	}
+	client := http.DefaultClient
+	_, err = client.Do(req)
+	return err
+
+}
+
+func createCollectionTx(privKey crypto.PrivateKey) types.Hash {
+	//data := Contract()
+	tx := core.NewTransaction(nil)
+	tx.TxInnner = core.CollectionTx{
+		Fee:      200,
+		MetaData: []byte("collection nft"),
+	}
+	if err := tx.Sign(privKey); err != nil {
+		panic(err)
+	}
+	buff := &bytes.Buffer{}
+	if err := tx.Encode(core.NewGobTxEncoder(buff)); err != nil {
+		panic(err)
+	}
+	req, err := http.NewRequest("POST", "http://localhost:9000/tx", buff)
+	if err != nil {
+		panic(err)
+	}
+	client := http.DefaultClient
+	_, err = client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	return tx.Hash(core.TransactionHashesr{})
+}
+
+func nftMinter(privKey crypto.PrivateKey, collectionHash types.Hash) {
+	//data := Contract()
+	tx := core.NewTransaction(nil)
+
+	metaData := map[string]any{
+		"hello": "world",
+		"age":   34,
+		"color": "green",
+	}
+	metaBuff := new(bytes.Buffer)
+	if err := json.NewEncoder(metaBuff).Encode(metaData); err != nil {
+		panic(err)
+	}
+	tx.TxInnner = core.MintTx{
+		Fee:             200,
+		NFT:             utils.RandomHash(utils.RandomBytes(32)),
+		MetaData:        metaBuff.Bytes(),
+		Collection:      collectionHash,
+		CollectionOwner: privKey.GeneratePublicKey(),
+	}
 	if err := tx.Sign(privKey); err != nil {
 		panic(err)
 	}

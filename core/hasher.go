@@ -1,8 +1,10 @@
 package core
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"encoding/binary"
+	"encoding/gob"
+	"fmt"
 
 	"github.com/raja-dettex/modular-blockchain/types"
 )
@@ -22,8 +24,9 @@ func (bh BlockHasher) Hash(h *Header) types.Hash {
 type TransactionHashesr struct{}
 
 func (tHahser TransactionHashesr) Hash(tx *Transaction) types.Hash {
-	buff := make([]byte, 8)
-	binary.LittleEndian.PutUint32(buff, uint32(tx.Nonce))
-	data := append(buff, tx.Data...)
-	return sha256.Sum256(data)
+	buff := &bytes.Buffer{}
+	if err := gob.NewEncoder(buff).Encode(tx); err != nil {
+		fmt.Println(err)
+	}
+	return sha256.Sum256(buff.Bytes())
 }

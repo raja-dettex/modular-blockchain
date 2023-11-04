@@ -35,8 +35,9 @@ type ServerOpts struct {
 type Server struct {
 	peerCh chan *TCPPeer
 
-	mu      sync.RWMutex
-	peerMap map[string]*TCPPeer
+	mu           sync.RWMutex
+	peerMap      map[string]*TCPPeer
+	AccountState *core.AccountState
 
 	Opts        ServerOpts
 	isValidator bool
@@ -91,14 +92,24 @@ func NewServer(opts ServerOpts) (*Server, error) {
 	if opts.Logger == nil {
 		opts.Logger = log.NewLogfmtLogger(os.Stderr)
 		opts.Logger = log.With(opts.Logger, "ID", opts.ID)
-	}
 
+	}
 	s.Opts = opts
-	bc, err := core.NewBlockChain(s.Opts.Logger, genesisBlock())
+	ac := core.NewAccountState()
+	if s.Opts.PrivateKey != nil {
+		if err := ac.AddBalance(s.Opts.PrivateKey.GeneratePublicKey().Address(), 10000); err != nil {
+			s.Opts.Logger.Log("err", err)
+		}
+	}
+	s.AccountState = ac
+
+	bc, err := core.NewBlockChain(s.Opts.Logger, genesisBlock(), ac)
 	if err != nil {
 		return nil, err
 	}
 	s.chain = bc
+
+	// put the account state into the server
 
 	if s.isValidator {
 		s.Opts.Logger.Log("is validator", s.isValidator, "key", s.Opts.PrivateKey)
@@ -158,6 +169,7 @@ free:
 				// }
 			}
 			if err = s.Opts.RPCProcessor.ProcessMessage(msg); err != nil {
+				fmt.Printf("====> error %v\n", err)
 				if err != core.ErrBlockKnown {
 					s.Opts.Logger.Log("error", err)
 				}
@@ -176,7 +188,9 @@ func (s *Server) ProcessMessage(msg *DecodedMessage) error {
 	case *core.Transaction:
 		s.processTransaction(t)
 	case *core.Block:
-		s.processBlock(t)
+		if err := s.processBlock(t); err != nil {
+			return err
+		}
 	case *GetStatusMessage:
 		s.processGetStatusMessage(msg.From, t)
 	case *StatusMessage:
@@ -438,7 +452,7 @@ func (s *Server) CreateBlock() error {
 	}
 	err = s.chain.AddBlock(block)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	go s.broadcastBlock(block)
 	s.memPool.ClearPending()

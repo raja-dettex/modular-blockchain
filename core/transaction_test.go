@@ -2,11 +2,50 @@ package core
 
 import (
 	"bytes"
+	"encoding/gob"
+	"fmt"
 	"testing"
 
 	"github.com/raja-dettex/modular-blockchain/crypto"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestTransaction(t *testing.T) {
+	fromPrivKey := crypto.GeneratePrivateKey()
+	toPrivKey := crypto.GeneratePrivateKey()
+	tx := &Transaction{
+		Data:  []byte("foo"),
+		To:    toPrivKey.GeneratePublicKey(),
+		Value: 666,
+	}
+	err := tx.Sign(fromPrivKey)
+	assert.Nil(t, err)
+	hash := tx.Hash(TransactionHashesr{})
+	fmt.Println(tx)
+	fmt.Println(hash)
+
+}
+
+func TestNFTTransaction(t *testing.T) {
+	collectiontx := CollectionTx{
+		Fee:      200,
+		MetaData: []byte("collection nft"),
+	}
+
+	tx := &Transaction{
+		TxInnner: collectiontx,
+	}
+	privKey := crypto.GeneratePrivateKey()
+	tx.Sign(privKey)
+	buff := new(bytes.Buffer)
+
+	err := gob.NewEncoder(buff).Encode(tx)
+	assert.Nil(t, err)
+	txDecoded := &Transaction{}
+	err = gob.NewDecoder(buff).Decode(txDecoded)
+	assert.Nil(t, err)
+	assert.Equal(t, tx, txDecoded)
+}
 
 func TestSignTransaction(t *testing.T) {
 	privKey := crypto.GeneratePrivateKey()
